@@ -54,9 +54,64 @@ def load_data():
 
 df = load_data()
 
+# ==================================
+# Executive Dashboard
+# ==================================
+
+st.subheader("📊 Executive Dashboard")
+
+total_sales = df['Sales'].sum()
+total_profit = df['Gross Profit'].sum()
+total_orders = len(df)
+avg_delivery = df['Delivery Days'].mean()
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("💰 Total Sales", f"${total_sales:,.2f}")
+col2.metric("📈 Total Profit", f"${total_profit:,.2f}")
+col3.metric("📦 Total Orders", total_orders)
+col4.metric("🚚 Avg Delivery Days", round(avg_delivery, 2))
+
+# Top Product Card
+
+top_product = (
+    df.groupby('Product Name')['Sales']
+    .sum()
+    .idxmax()
+)
+
+st.info(
+    f"🏆 Best Selling Product: {top_product}"
+)
+
+profit_margin = (
+    total_profit / total_sales) * 100
+
+st.metric(
+    "Profit Margin %",
+    f"{profit_margin:.2f}%"
+)
+
+st.subheader("💡 Business Insights")
+
+if profit_margin < 10:
+    st.warning(
+        "Profit margin is low. Review shipping costs."
+    )
+
+if avg_delivery > 5:
+    st.warning(
+        "Average delivery time is high."
+    )
+else:
+    st.success(
+        "Delivery performance is good."
+    )
+
 # -----------------------------------
 # Show Dataset
 # -----------------------------------
+
 st.subheader("📄 Dataset Preview")
 st.dataframe(df.head())
 
