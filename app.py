@@ -53,7 +53,6 @@ def load_data():
     return df
 
 df = load_data()
-
 # ==================================
 # Executive Dashboard
 # ==================================
@@ -111,9 +110,9 @@ else:
 # -----------------------------------
 # Show Dataset
 # -----------------------------------
-
 st.subheader("📄 Dataset Preview")
 st.dataframe(df.head())
+
 
 # -----------------------------------
 # Sample Factory Coordinates
@@ -137,7 +136,6 @@ df['Factory'] = np.random.choice(
     list(factory_locations.keys()),
     len(df)
 )
-
 # -----------------------------------
 # Distance Calculation
 # -----------------------------------
@@ -172,6 +170,44 @@ df['Shipping Cost'] = (
 )
 
 # -----------------------------------
+# Shipping Cost Category
+# -----------------------------------
+
+def shipping_category(cost):
+    if cost < 500:
+        return "Low"
+    elif cost < 1000:
+        return "Medium"
+    else:
+        return "High"
+
+df["Shipping Category"] = df["Shipping Cost"].apply(shipping_category)
+# ===============================
+# Sidebar Filter
+# ===============================
+
+st.sidebar.header("Dashboard Filters")
+
+selected_factory = st.sidebar.multiselect(
+    "Select Factory",
+    options=df["Factory"].unique(),
+    default=df["Factory"].unique()
+)
+
+filtered_df = df[df["Factory"].isin(selected_factory)]
+
+# Product Search
+search_product = st.sidebar.text_input("🔍 Search Product")
+
+if search_product:
+    filtered_df = filtered_df[
+        filtered_df["Product Name"].str.contains(
+            search_product,
+            case=False,
+            na=False
+        )
+    ]
+# -----------------------------------
 # Dashboard Metrics
 # -----------------------------------
 st.subheader("📊 Key Metrics")
@@ -185,7 +221,7 @@ col1.metric(
 
 col2.metric(
     "Average Shipping Cost",
-    f"${df['Shipping Cost'].mean():.2f}"
+   f"${df['Shipping Cost'].mean():.2f}"
 )
 
 col3.metric(
@@ -193,13 +229,18 @@ col3.metric(
     round(df['Delivery Days'].mean(), 2)
 )
 
+highest_cost = filtered_df["Shipping Cost"].max()
+
+st.metric(
+    "Highest Shipping Cost",
+    f"${highest_cost:.2f}"
+)
 # -----------------------------------
 # Factory-wise Analysis
 # -----------------------------------
 st.subheader("🏭 Factory-wise Shipping Cost")
 
-factory_cost = df.groupby('Factory')['Shipping Cost'].mean()
-
+factory_cost = filtered_df.groupby('Factory')['Shipping Cost'].mean()
 fig, ax = plt.subplots()
 
 factory_cost.plot(
@@ -211,6 +252,36 @@ ax.set_ylabel("Average Shipping Cost")
 
 st.pyplot(fig)
 
+st.subheader("🥧 Factory Distribution")
+
+factory_count = filtered_df["Factory"].value_counts()
+
+fig, ax = plt.subplots()
+
+ax.pie(
+    factory_count,
+    labels=factory_count.index,
+    autopct="%1.1f%%",
+    startangle=90
+)
+
+ax.axis("equal")
+
+st.pyplot(fig)
+st.subheader("📈 Distance vs Shipping Cost")
+
+fig, ax = plt.subplots()
+
+ax.plot(
+    filtered_df["Distance KM"],
+    filtered_df["Shipping Cost"],
+    "o"
+)
+
+ax.set_xlabel("Distance (KM)")
+ax.set_ylabel("Shipping Cost")
+
+st.pyplot(fig)
 # -----------------------------------
 # Machine Learning Model
 # -----------------------------------
@@ -232,7 +303,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Model
 model = RandomForestRegressor()
-
 model.fit(X_train, y_train)
 
 # Prediction
@@ -240,7 +310,6 @@ predictions = model.predict(X_test)
 
 # Accuracy
 mae = mean_absolute_error(y_test, predictions)
-
 st.success(f"Model Mean Absolute Error: {mae:.2f}")
 
 # -----------------------------------
@@ -264,39 +333,138 @@ if st.button("Predict Shipping Cost"):
 
     predicted_cost = model.predict(
         [[distance_input, delivery_input]]
-    )[0]
+        )[0]
 
     # Recommendation Logic
-    if distance_input < 1000:
-        recommended_factory = "Factory A"
-    elif distance_input < 2000:
-        recommended_factory = "Factory C"
+    if distance_input <= 1000:
+        if delivery_input <= 3:
+            recommended_factory = "Factory A"
+        else:
+            recommended_factory = "Factory C"
+
+    elif distance_input <= 2000:
+        if delivery_input <= 5:
+            recommended_factory = "Factory C"
+        else:
+            recommended_factory = "Factory B"
+
     else:
         recommended_factory = "Factory B"
 
-    st.success(
-        f"Predicted Shipping Cost: ${predicted_cost:.2f}"
-    )
+    st.success(f"Predicted Shipping Cost: ${predicted_cost:.2f}")
+    st.info(f"Recommended Factory: {recommended_factory}")
 
-    st.info(
-        f"Recommended Factory: {recommended_factory}"
-    )
+# -----------------------------------
+# Factory Performance Summary
+# -----------------------------------
 
+st.subheader("🏭 Factory Performance Summary")
+
+performance = filtered_df.groupby("Factory").agg({
+    "Sales": "sum",
+    "Gross Profit": "sum",
+    "Shipping Cost": "mean",
+    "Delivery Days": "mean"
+}).round(2)
+
+# -----------------------------------
+# Factory Ranking
+# -----------------------------------
+
+st.subheader("🥇 Factory Ranking")
+
+ranking = performance.sort_values(
+    by="Gross Profit",
+    ascending=False
+)
+
+ranking["Rank"] = range(1, len(ranking) + 1)
+
+st.dataframe(ranking)
+st.dataframe(performance)
+# -----------------------------------
+# Recommendation Summary
+# -----------------------------------
+
+st.subheader("💡 Recommendation Summary")
+
+best_factory = filtered_df.groupby("Factory")["Shipping Cost"].mean().idxmin()
+
+lowest_cost = filtered_df.groupby("Factory")["Shipping Cost"].mean().min()
+
+st.success(f"🏆 Best Factory: {best_factory}")
+
+st.write(f"Average Shipping Cost: ${lowest_cost:.2f}")
+
+st.info(
+    "Recommendation: Allocate more orders to this factory to reduce shipping costs and improve logistics performance."
+)
+# -------------------------------
+# Top 5 Highest Shipping Cost
+# -------------------------------
+
+st.subheader("💰 Top 5 Highest Shipping Cost Orders")
+
+top5 = filtered_df.nlargest(5, "Shipping Cost")
+
+st.dataframe(
+    top5[
+        [
+            "Product Name",
+            "Factory",
+            "Distance KM",
+            "Shipping Cost"
+        ]
+    ]
+)
+
+st.subheader("📊 Shipping Cost Statistics")
+
+st.write(filtered_df["Shipping Cost"].describe())
 # -----------------------------------
 # Show Full Dataset
 # -----------------------------------
 st.subheader("📋 Complete Processed Dataset")
-
-st.dataframe(df)
+st.dataframe(
+    filtered_df[
+        [
+            "Product Name",
+            "Factory",
+            "Distance KM",
+            "Shipping Cost",
+            "Shipping Category",
+            "Delivery Days"
+        ]
+    ]
+)
 
 # -----------------------------------
 # Download CSV
 # -----------------------------------
-csv = df.to_csv(index=False).encode('utf-8')
+# -----------------------------------
+# Download Filtered Dataset
+# -----------------------------------
+
+csv = filtered_df.to_csv(index=False).encode('utf-8')
 
 st.download_button(
-    label="⬇ Download Processed Dataset",
+    label="⬇ Download Filtered Dataset",
     data=csv,
-    file_name='processed_shipping_data.csv',
-    mime='text/csv'
+    file_name="Filtered_Shipping_Report.csv",
+    mime="text/csv"
 )
+# -----------------------------------
+# Dashboard Footer
+# -----------------------------------
+
+st.markdown("---")
+
+st.markdown("""
+### 👨‍💻 Developed By
+
+**Kiruba M**  
+**M.Sc. Computer Science**  
+**Factory Reallocation & Shipping Optimization System**  
+
+📊 Built using **Python, Streamlit, Pandas, Scikit-learn, Matplotlib**
+""")
