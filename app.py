@@ -4,7 +4,7 @@ import numpy as np
 from geopy.distance import geodesic
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 
 # -----------------------------------
@@ -302,15 +302,60 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # Model
-model = RandomForestRegressor()
+model = RandomForestRegressor(random_state=42)
 model.fit(X_train, y_train)
 
-# Prediction
+# Prediction on the held-out test set
 predictions = model.predict(X_test)
 
-# Accuracy
+# -----------------------------------
+# Model Evaluation
+# -----------------------------------
+st.subheader("📐 Model Evaluation")
+
 mae = mean_absolute_error(y_test, predictions)
-st.success(f"Model Mean Absolute Error: {mae:.2f}")
+rmse = mean_squared_error(y_test, predictions) ** 0.5
+r2 = r2_score(y_test, predictions)
+
+eval_col1, eval_col2, eval_col3 = st.columns(3)
+
+eval_col1.metric("MAE (Mean Absolute Error)", f"${mae:.2f}")
+eval_col2.metric("RMSE (Root Mean Squared Error)", f"${rmse:.2f}")
+eval_col3.metric("R² Score", f"{r2:.4f}")
+
+st.caption(
+    "MAE and RMSE are in the same unit as Shipping Cost (USD) — lower is better. "
+    "R² Score shows the proportion of variance in Shipping Cost explained by the "
+    "model, where a value closer to 1.0 indicates a better fit."
+)
+
+# Predicted vs Actual plot
+st.markdown("**Predicted vs Actual Shipping Cost (Test Set)**")
+fig, ax = plt.subplots()
+ax.scatter(y_test, predictions, alpha=0.4, edgecolor="none")
+lims = [min(y_test.min(), predictions.min()), max(y_test.max(), predictions.max())]
+ax.plot(lims, lims, color="red", linestyle="--", linewidth=1, label="Perfect Prediction")
+ax.set_xlabel("Actual Shipping Cost")
+ax.set_ylabel("Predicted Shipping Cost")
+ax.legend()
+st.pyplot(fig)
+
+# Residual plot
+st.markdown("**Residuals (Actual − Predicted)**")
+residuals = y_test - predictions
+fig, ax = plt.subplots()
+ax.scatter(predictions, residuals, alpha=0.4, edgecolor="none")
+ax.axhline(0, color="red", linestyle="--", linewidth=1)
+ax.set_xlabel("Predicted Shipping Cost")
+ax.set_ylabel("Residual")
+st.pyplot(fig)
+
+if mae < 30:
+    st.success(f"Model Mean Absolute Error: {mae:.2f} — predictions are highly accurate.")
+elif mae < 75:
+    st.warning(f"Model Mean Absolute Error: {mae:.2f} — predictions are reasonably accurate.")
+else:
+    st.error(f"Model Mean Absolute Error: {mae:.2f} — consider more features or tuning.")
 
 # -----------------------------------
 # Recommendation System
@@ -462,9 +507,9 @@ st.markdown("---")
 st.markdown("""
 ### 👨‍💻 Developed By
 
-**Kiruba M**  
-**M.Sc. Computer Science**  
-**Factory Reallocation & Shipping Optimization System**  
+**Kiruba M**
+**M.Sc. Computer Science**
+**Factory Reallocation & Shipping Optimization System**
 
 📊 Built using **Python, Streamlit, Pandas, Scikit-learn, Matplotlib**
 """)
