@@ -21,37 +21,32 @@ st.write("Nassau Candy Distributor Recommendation Dashboard")
 # -----------------------------------
 # Load Dataset
 # -----------------------------------
+
 @st.cache_data
 def load_data():
-
-    # Read CSV
     df = pd.read_csv("Nassau Candy Distributor.csv")
 
-    # Convert to string first
     df['Order Date'] = df['Order Date'].astype(str)
     df['Ship Date'] = df['Ship Date'].astype(str)
 
-    # Convert columns to datetime
+    # Explicit day-first format — removes the warning and parses faster
     df['Order Date'] = pd.to_datetime(
         df['Order Date'],
+        format='%d-%m-%Y',
         errors='coerce'
     )
 
     df['Ship Date'] = pd.to_datetime(
         df['Ship Date'],
+        format='%d-%m-%Y',
         errors='coerce'
     )
 
-    # Remove invalid rows
     df = df.dropna(subset=['Order Date', 'Ship Date'])
 
-    # Delivery Days
-    df['Delivery Days'] = (
-        df['Ship Date'] - df['Order Date']
-    ).dt.days
+    df['Delivery Days'] = (df['Ship Date'] - df['Order Date']).dt.days
 
     return df
-
 df = load_data()
 # ==================================
 # Executive Dashboard
@@ -376,9 +371,12 @@ delivery_input = st.number_input(
 
 if st.button("Predict Shipping Cost"):
 
-    predicted_cost = model.predict(
-        [[distance_input, delivery_input]]
-        )[0]
+    input_df = pd.DataFrame(
+        [[distance_input, delivery_input]],
+        columns=['Distance KM', 'Delivery Days']
+    )
+
+    predicted_cost = model.predict(input_df)[0]
 
     # Recommendation Logic
     if distance_input <= 1000:
